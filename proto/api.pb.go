@@ -83,8 +83,8 @@ type Task struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	ExpId         string                 `protobuf:"bytes,2,opt,name=expId,proto3" json:"expId,omitempty"`
-	Arg1          float32                `protobuf:"fixed32,3,opt,name=arg1,proto3" json:"arg1,omitempty"`
-	Arg2          float32                `protobuf:"fixed32,4,opt,name=arg2,proto3" json:"arg2,omitempty"`
+	Arg1          float64                `protobuf:"fixed64,3,opt,name=arg1,proto3" json:"arg1,omitempty"`
+	Arg2          float64                `protobuf:"fixed64,4,opt,name=arg2,proto3" json:"arg2,omitempty"`
 	Operation     string                 `protobuf:"bytes,5,opt,name=operation,proto3" json:"operation,omitempty"`
 	OperationTime *durationpb.Duration   `protobuf:"bytes,6,opt,name=operationTime,proto3" json:"operationTime,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -135,14 +135,14 @@ func (x *Task) GetExpId() string {
 	return ""
 }
 
-func (x *Task) GetArg1() float32 {
+func (x *Task) GetArg1() float64 {
 	if x != nil {
 		return x.Arg1
 	}
 	return 0
 }
 
-func (x *Task) GetArg2() float32 {
+func (x *Task) GetArg2() float64 {
 	if x != nil {
 		return x.Arg2
 	}
@@ -166,7 +166,7 @@ func (x *Task) GetOperationTime() *durationpb.Duration {
 type TaskResult struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Result        float32                `protobuf:"fixed32,2,opt,name=result,proto3" json:"result,omitempty"`
+	Result        float64                `protobuf:"fixed64,2,opt,name=result,proto3" json:"result,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -208,7 +208,7 @@ func (x *TaskResult) GetId() string {
 	return ""
 }
 
-func (x *TaskResult) GetResult() float32 {
+func (x *TaskResult) GetResult() float64 {
 	if x != nil {
 		return x.Result
 	}
@@ -227,14 +227,14 @@ const file_proto_api_proto_rawDesc = "" +
 	"\x04Task\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05expId\x18\x02 \x01(\tR\x05expId\x12\x12\n" +
-	"\x04arg1\x18\x03 \x01(\x02R\x04arg1\x12\x12\n" +
-	"\x04arg2\x18\x04 \x01(\x02R\x04arg2\x12\x1c\n" +
+	"\x04arg1\x18\x03 \x01(\x01R\x04arg1\x12\x12\n" +
+	"\x04arg2\x18\x04 \x01(\x01R\x04arg2\x12\x1c\n" +
 	"\toperation\x18\x05 \x01(\tR\toperation\x12?\n" +
 	"\roperationTime\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\roperationTime\"4\n" +
 	"\n" +
 	"TaskResult\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
-	"\x06result\x18\x02 \x01(\x02R\x06result2\x84\x01\n" +
+	"\x06result\x18\x02 \x01(\x01R\x06result2\x84\x01\n" +
 	"\n" +
 	"APIService\x12;\n" +
 	"\aGetTask\x12\x16.google.protobuf.Empty\x1a\x18.calculator.TaskResponse\x129\n" +

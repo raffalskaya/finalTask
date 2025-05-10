@@ -26,14 +26,16 @@ message TaskResponse{
 message Task {
 	string id = 1;
 	string expId = 2;
-	float arg1 = 3;
-	float arg2 = 4;
+	double arg1 = 3;
+	double arg2 = 4;
 	string operation = 5;
 	google.protobuf.Duration operationTime = 6;
 }
 
 message TaskResult{
 	string id = 1;
-	float result = 2;
+	double result = 2;
 }
 // protoc --go_out=. --go_opt=paths=source_relative  --go-grpc_out=. --go-grpc_opt=paths=source_relative proto/api.proto
+// export GO_PATH=~/go
+// export PATH=$PATH:/$GO_PATH/bin
