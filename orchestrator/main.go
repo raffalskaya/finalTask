@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	// pb "../proto"
 	pb "github.com/raffalskaya/finalTask/proto"
 	"google.golang.org/grpc"
 )
