@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package calculator; // название пакета
+option go_package = "calculator.proto";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/duration.proto"; 
+
+// Сервис общения оркестратора и агента
+service APIService {
+    // Получение выражения для вычисления
+    rpc GetTask(google.protobuf.Empty) returns (TaskResponse);
+}
+
+// Ответ с задачей и флагом о готовности задачи
+message TaskResponse{
+    // Флаг, говорящий о готовности задачи
+    bool enabled = 1;
+    // Задача, ели enabled == true
+    Task task = 2;
+}
+
+// Задача для агента
+message Task {
+	string id = 1;
+	string expId = 2;
+	float arg1 = 3;
+	float arg2 = 4;
+	string operation = 5;
+	google.protobuf.Duration operationTime = 6;
+}
+// protoc --go_out=. --go_opt=paths=source_relative  --go-grpc_out=. --go-grpc_opt=paths=source_relative proto/api.proto
+// protoc --go_out=. --go-grpc_out=. proto/api.proto
