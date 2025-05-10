@@ -8,8 +8,10 @@ import "google/protobuf/duration.proto";
 
 // Сервис общения оркестратора и агента
 service APIService {
-    // Получение выражения для вычисления
+    // Получение задачи для вычисления
     rpc GetTask(google.protobuf.Empty) returns (TaskResponse);
+    // Запись вычисленного результата
+    rpc SetTask(TaskResult) returns (google.protobuf.Empty);
 }
 
 // Ответ с задачей и флагом о готовности задачи
@@ -29,5 +31,9 @@ message Task {
 	string operation = 5;
 	google.protobuf.Duration operationTime = 6;
 }
+
+message TaskResult{
+	string id = 1;
+	float result = 2;
+}
 // protoc --go_out=. --go_opt=paths=source_relative  --go-grpc_out=. --go-grpc_opt=paths=source_relative proto/api.proto
-// protoc --go_out=. --go-grpc_out=. proto/api.proto

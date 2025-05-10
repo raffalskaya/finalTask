@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	APIService_GetTask_FullMethodName = "/calculator.APIService/GetTask"
+	APIService_SetTask_FullMethodName = "/calculator.APIService/SetTask"
 )
 
 // APIServiceClient is the client API for APIService service.
@@ -29,8 +30,10 @@ const (
 //
 // Сервис общения оркестратора и агента
 type APIServiceClient interface {
-	// Получение выражения для вычисления
+	// Получение задачи для вычисления
 	GetTask(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*TaskResponse, error)
+	// Запись вычисленного результата
+	SetTask(ctx context.Context, in *TaskResult, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type aPIServiceClient struct {
@@ -51,14 +54,26 @@ func (c *aPIServiceClient) GetTask(ctx context.Context, in *emptypb.Empty, opts 
 	return out, nil
 }
 
+func (c *aPIServiceClient) SetTask(ctx context.Context, in *TaskResult, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, APIService_SetTask_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // APIServiceServer is the server API for APIService service.
 // All implementations must embed UnimplementedAPIServiceServer
 // for forward compatibility.
 //
 // Сервис общения оркестратора и агента
 type APIServiceServer interface {
-	// Получение выражения для вычисления
+	// Получение задачи для вычисления
 	GetTask(context.Context, *emptypb.Empty) (*TaskResponse, error)
+	// Запись вычисленного результата
+	SetTask(context.Context, *TaskResult) (*emptypb.Empty, error)
 	mustEmbedUnimplementedAPIServiceServer()
 }
 
@@ -71,6 +86,9 @@ type UnimplementedAPIServiceServer struct{}
 
 func (UnimplementedAPIServiceServer) GetTask(context.Context, *emptypb.Empty) (*TaskResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetTask not implemented")
+}
+func (UnimplementedAPIServiceServer) SetTask(context.Context, *TaskResult) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetTask not implemented")
 }
 func (UnimplementedAPIServiceServer) mustEmbedUnimplementedAPIServiceServer() {}
 func (UnimplementedAPIServiceServer) testEmbeddedByValue()                    {}
@@ -111,6 +129,24 @@ func _APIService_GetTask_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _APIService_SetTask_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TaskResult)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(APIServiceServer).SetTask(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: APIService_SetTask_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(APIServiceServer).SetTask(ctx, req.(*TaskResult))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // APIService_ServiceDesc is the grpc.ServiceDesc for APIService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -121,6 +157,10 @@ var APIService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetTask",
 			Handler:    _APIService_GetTask_Handler,
+		},
+		{
+			MethodName: "SetTask",
+			Handler:    _APIService_SetTask_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
