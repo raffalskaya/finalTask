@@ -9,7 +9,7 @@ import (
 
 type Task struct {
 	Id            uuid.UUID `json:"id"`
-	expId         uuid.UUID
+	expId         int64
 	Arg1          float64       `json:"arg1"`
 	Arg2          float64       `json:"arg2"`
 	Operation     string        `json:"operation"`

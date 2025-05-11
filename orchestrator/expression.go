@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"os"
@@ -12,43 +14,56 @@ import (
 )
 
 type Expression struct {
-	Id          uuid.UUID `json:"id"`
-	Status      string    `json:"status" binding:"oneof=active completed calculated"`
-	Result      float64   `json:"result"`
+	Id          int64   `json:"id"`
+	Status      string  `json:"status" binding:"oneof=active completed calculated"`
+	Result      float64 `json:"result"`
 	requestData string
 	stack       []string
 	tmpStack    []float64
 }
 
 type ExpressionsMap struct {
-	m  map[uuid.UUID]Expression
+	m  map[int64]Expression
 	mu sync.RWMutex
 	tm TaskMap
 }
 
 func NewExpressionsMap() *ExpressionsMap {
 	return &ExpressionsMap{
-		m:  make(map[uuid.UUID]Expression),
+		m:  make(map[int64]Expression),
 		tm: *NewTasksMap(),
 	}
 }
 
-func (em *ExpressionsMap) GetExpression(id string) (*Expression, int) {
+func (em *ExpressionsMap) GetExpression(ctx context.Context, db *sql.DB, id string) (*ExpressionDB, int) {
 	// распарисм строку
-	uid, err := uuid.Parse(id)
+	uid, err := strconv.ParseInt(id, 16, 64)
 	if err != nil {
 		return nil, http.StatusInternalServerError
 	}
-	em.mu.Lock()
-	data, exists := em.m[uid]
-	em.mu.Unlock()
-	if !exists {
-		return nil, http.StatusNotFound
+	var exp ExpressionDB
+	var q = "SELECT id, expression, user_id FROM expressions WHERE id = $1"
+	// var q = "SELECT id, name, password FROM users WHERE name=$1"
+	err = db.QueryRowContext(ctx, q, uid).Scan(&exp.ID, &exp.Expression, &exp.UserID)
+	if err != nil {
+		return nil, http.StatusInternalServerError
 	}
-	return &data, http.StatusOK
+	return &exp, http.StatusOK
+
+	// uid, err := uuid.Parse(id)
+	// if err != nil {
+	// 	return nil, http.StatusInternalServerError
+	// }
+	// em.mu.Lock()
+	// data, exists := em.m[uid]
+	// em.mu.Unlock()
+	// if !exists {
+	// 	return nil, http.StatusNotFound
+	// }
+	// return &data, http.StatusOK
 }
 
-func (em *ExpressionsMap) setTaskResult(taskBody TaskResultBody) int {
+func (em *ExpressionsMap) setTaskResult(ctx context.Context, db *sql.DB, taskBody TaskResultBody) int {
 	em.tm.mu.Lock()
 	defer em.tm.mu.Unlock()
 	uid, err := uuid.Parse(taskBody.Id)
@@ -78,11 +93,25 @@ func (em *ExpressionsMap) setTaskResult(taskBody TaskResultBody) int {
 	} else {
 		expression.Result = taskBody.Result
 		expression.Status = "completed"
+		err := updateExpression(ctx, db, expression.Id, taskBody.Result)
+		if err != nil {
+			return http.StatusInternalServerError
+		}
 	}
 
 	em.m[expression.Id] = expression
 
 	return http.StatusOK
+}
+
+func updateExpression(ctx context.Context, db *sql.DB, id int64, result float64) error {
+	var q = "UPDATE expressions SET result = $1 WHERE id = $2"
+	_, err := db.ExecContext(ctx, q, result, id)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (em *ExpressionsMap) MoveTaskToStack(task Task) bool {
@@ -257,8 +286,7 @@ func (em *ExpressionsMap) getTask() *Task {
 	return nil
 }
 
-// Добавление выражения для вычисления
-func (em *ExpressionsMap) AddExpression(expression string) (int, *Expression) {
+func (em *ExpressionsMap) AddExpression(ctx context.Context, db *sql.DB, expression string, userId string) (int, *Expression) {
 
 	allstack, success := createStack(expression)
 
@@ -266,8 +294,20 @@ func (em *ExpressionsMap) AddExpression(expression string) (int, *Expression) {
 		return http.StatusUnprocessableEntity, nil
 	}
 
+	var q = `
+	INSERT INTO expressions (expression, user_id, result) values ($1, $2, "")
+	`
+	result, err := db.ExecContext(ctx, q, expression, userId)
+	if err != nil {
+		return http.StatusUnprocessableEntity, nil
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		return http.StatusUnprocessableEntity, nil
+	}
+
 	exp := Expression{
-		Id:          uuid.New(),
+		Id:          id,
 		Status:      "active",
 		requestData: expression,
 		stack:       allstack,
@@ -280,13 +320,89 @@ func (em *ExpressionsMap) AddExpression(expression string) (int, *Expression) {
 	return http.StatusCreated, &exp
 }
 
-// Получение всех выражений для вычисления
-func (em *ExpressionsMap) GetExpressions() []Expression {
-	expressions := make([]Expression, 0, 1)
-	em.mu.Lock()
-	for _, e := range em.m {
+type (
+	ExpressionDB struct {
+		ID         int64
+		Expression string
+		UserID     int64
+		Result     string
+	}
+)
+
+func (em *ExpressionsMap) GetExpressions(ctx context.Context, db *sql.DB, userId string) ([]ExpressionDB, error) {
+	var expressions []ExpressionDB
+	var q = "SELECT id, expression, user_id, result FROM expressions WHERE user_id = $1"
+
+	rows, err := db.QueryContext(ctx, q, userId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		e := ExpressionDB{}
+		// err := rows.Scan(&e.ID)
+		err := rows.Scan(&e.ID, &e.Expression, &e.UserID, &e.Result)
+		if err != nil {
+			return nil, err
+		}
 		expressions = append(expressions, e)
 	}
-	em.mu.Unlock()
-	return expressions
+
+	return expressions, nil
+}
+
+func (em *ExpressionsMap) ProcessEmptyExpressions(ctx context.Context, db *sql.DB) error {
+	var q = "SELECT id, expression, user_id, result FROM expressions WHERE result = ''"
+
+	rows, err := db.QueryContext(ctx, q)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		e := ExpressionDB{}
+		err := rows.Scan(&e.ID, &e.Expression, &e.UserID, &e.Result)
+		if err != nil {
+			return err
+		}
+
+		allstack, success := createStack(e.Expression)
+
+		if !success {
+			continue
+		}
+
+		exp := Expression{
+			Id:          e.ID,
+			Status:      "active",
+			requestData: e.Expression,
+			stack:       allstack,
+			tmpStack:    make([]float64, 0),
+		}
+
+		em.mu.Lock()
+		em.m[exp.Id] = exp
+		em.mu.Unlock()
+	}
+
+	return nil
+}
+
+func createExpressionsTable(ctx context.Context, db *sql.DB) error {
+	const usersTable = `
+	CREATE TABLE IF NOT EXISTS expressions(
+		id INTEGER PRIMARY KEY AUTOINCREMENT, 
+		expression TEXT NOT NULL,
+		user_id INTEGER NOT NULL,
+		result TEXT NOT NULL,
+		FOREIGN KEY (user_id)  REFERENCES expressions (id)
+	);`
+
+	if _, err := db.ExecContext(ctx, usersTable); err != nil {
+		return err
+	}
+
+	return nil
 }

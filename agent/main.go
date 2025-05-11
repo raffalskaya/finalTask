@@ -1,131 +1,88 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
+	pb "github.com/raffalskaya/finalTask/proto"
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
-
-type TaskBody struct {
-	Task Task `json:"task"`
-}
-
-type Task struct {
-	Id            uuid.UUID     `json:"id"`
-	Arg1          float64       `json:"arg1"`
-	Arg2          float64       `json:"arg2"`
-	Operation     string        `json:"operation"`
-	OperationTime time.Duration `json:"operation_time"`
-}
-
-type TaskResult struct {
-	Id     string  `json:"id"`
-	Result float64 `json:"result"`
-}
 
 var sleepTime = 1 * time.Second
 
 func calculate() {
-	client := &http.Client{}
 	for {
-		resp, err := http.Get("http://localhost:8000/api/internal/task")
+		conn, err := grpc.Dial("localhost:50051", grpc.WithInsecure())
 		if err != nil {
 			fmt.Println("Оркестратор не запущен")
 			time.Sleep(sleepTime)
 			continue
 		}
+		defer conn.Close()
 
-		if resp.StatusCode != http.StatusOK {
+		// Создаем клиент
+		client := pb.NewAPIServiceClient(conn)
+
+		// Вызываем метод GetTask
+		req := &emptypb.Empty{} // Пустой запрос
+		resp, err := client.GetTask(context.Background(), req)
+		if err != nil {
+			fmt.Println("Ошибка получения задачи")
+			time.Sleep(sleepTime)
+			continue
+		}
+
+		if resp.Enabled != true {
 			fmt.Println("Нет задач")
 			time.Sleep(sleepTime)
 			continue
 		}
 
-		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-
-		if err != nil {
-			fmt.Println(err)
-			time.Sleep(sleepTime)
-			continue
-		}
-
-		var taskBody TaskBody
-
-		errP := json.Unmarshal([]byte(body), &taskBody)
-		if errP != nil {
-			fmt.Println(errP)
-			time.Sleep(sleepTime)
-			continue
-		}
-
-		task := taskBody.Task
-
 		var result float64
-		switch task.Operation {
+		switch resp.Task.Operation {
 		case "+":
-			result = task.Arg1 + task.Arg2
+			result = resp.Task.Arg1 + resp.Task.Arg2
 		case "-":
-			result = task.Arg1 - task.Arg2
+			result = resp.Task.Arg1 - resp.Task.Arg2
 		case "*":
-			result = task.Arg1 * task.Arg2
+			result = resp.Task.Arg1 * resp.Task.Arg2
 		case "/":
-			if task.Arg2 == 0 {
+			if resp.Task.Arg2 == 0 {
 				result = 0
 			}
-			result = task.Arg1 / task.Arg2
+			result = resp.Task.Arg1 / resp.Task.Arg2
 		default:
 			result = 0
 		}
 
-		taskRes := &TaskResult{
-			Id:     task.Id.String(),
+		taskRes := &pb.TaskResult{
+			Id:     resp.Task.Id,
 			Result: result,
 		}
 
-		data, err := json.Marshal(taskRes)
+		setStatusResp, err := client.SetTask(context.Background(), taskRes)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println("Ошибка отправки результата задачи", setStatusResp)
 			time.Sleep(sleepTime)
 			continue
 		}
-		// Создаем новый запрос
-		req, err := http.NewRequest("POST", "http://localhost:8000/api/internal/task", bytes.NewBuffer(data))
-		if err != nil {
-			fmt.Println(err)
-			time.Sleep(sleepTime)
-			continue
-		}
-		req.Header.Set("Content-Type", "application/json")
-
-		respRes, err := client.Do(req)
-		if err != nil {
-			fmt.Println(err)
-			time.Sleep(sleepTime)
-			continue
-		}
-
-		fmt.Println("Статус установки результата в оркестратор: ", respRes.Status)
 	}
 }
 
 func main() {
 	COMPUTING_POWER, exists := os.LookupEnv("COMPUTING_POWER")
 	if !exists {
-		COMPUTING_POWER = "2"
+		COMPUTING_POWER = "1"
 	}
 
 	computing_power_int, err := strconv.Atoi(COMPUTING_POWER)
 
 	if err != nil {
-		computing_power_int = 2
+		computing_power_int = 1
 	}
 	for i := 0; i < computing_power_int; i++ {
 		go calculate()
